@@ -1,7 +1,1 @@
 .env
-internal/worker/
-internal/queue/
-internal/utils/
-
-
-

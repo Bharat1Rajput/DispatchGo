@@ -10,10 +10,8 @@ import (
 func NewRouter(h *Handler) *mux.Router {
 	r := mux.NewRouter()
 
-	// Define our endpoints
 	r.HandleFunc("/tasks", h.CreateTask).Methods("POST")
-
-	// Health check (Good for k8s/deployments)
+	// Health check
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("OK"))

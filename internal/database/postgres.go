@@ -28,8 +28,8 @@ func NewPostgresDB(cfg Config) (*sql.DB, error) {
 	}
 
 	// Configure connection pool
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
+	db.SetMaxOpenConns(25) // maximum number of open connections to the database
+	db.SetMaxIdleConns(5)  // maximum number of connections in the idle connection pool
 
 	// Verify connection
 	if err := db.Ping(); err != nil {
@@ -38,28 +38,3 @@ func NewPostgresDB(cfg Config) (*sql.DB, error) {
 
 	return db, nil
 }
-
-// RunMigrations applies necessary database migrations
-// func RunMigrations(db *sql.DB) error {
-// 	schema := `CREATE TABLE IF NOT EXISTS tasks (
-//     id UUID PRIMARY KEY,
-//     type VARCHAR(50) NOT NULL,
-//     payload JSONB NOT NULL,
-//     status VARCHAR(20) NOT NULL,
-//     retries INTEGER DEFAULT 0,
-//     max_retries INTEGER DEFAULT 3,
-//     error TEXT,
-//     created_at TIMESTAMP NOT NULL,
-//     updated_at TIMESTAMP NOT NULL
-// );
-
-// CREATE INDEX idx_tasks_status ON tasks(status);
-// CREATE INDEX idx_tasks_created_at ON tasks(created_at DESC);
-
-// `
-// 	_, err := db.Exec(schema)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	return nil
-// }

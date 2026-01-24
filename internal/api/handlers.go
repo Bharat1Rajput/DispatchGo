@@ -19,7 +19,7 @@ func NewHandler(store *store.TaskStore) *Handler {
 
 // CreateTask handles POST /tasks
 func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
-	// Parse the request
+	// Parse the request body
 	var req models.WebhookPayload
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)

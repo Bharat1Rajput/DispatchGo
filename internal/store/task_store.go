@@ -13,12 +13,12 @@ type TaskStore struct {
 	db *sql.DB
 }
 
-// NewTaskStore creates a new instance of the repository
+// new instance of the repository
 func NewTaskStore(db *sql.DB) *TaskStore {
 	return &TaskStore{db: db}
 }
 
-// Create saves a new task (Used by the API)
+// Create a new task
 func (s *TaskStore) Create(t *models.Task) error {
 	// Initialize timestamps in Go so the object stays in sync with the DB
 	now := time.Now()
@@ -45,34 +45,44 @@ func (s *TaskStore) Create(t *models.Task) error {
 	return err
 }
 
-// GetNextTask picks the next 'PENDING' task and locks it.
-// This is the CRITICAL function for the worker engine.
+// picks the next 'PENDING' task and locks it.
 func (s *TaskStore) GetNextTask() (*models.Task, error) {
 	var t models.Task
 
-	// SENIOR LEVEL SQL:
-	// 1. SELECT ... FOR UPDATE SKIP LOCKED: Locks the row so other workers skip it.
-	// 2. UPDATE ... RETURNING: Changes status to PROCESSING atomically.
 	query := `
-		UPDATE tasks
-		SET status = $1, updated_at = NOW()
-		WHERE id = (
-			SELECT id FROM tasks
-			WHERE status = $2 
-            AND created_at < NOW() -- simple check to ensure we don't pick future tasks
-			ORDER BY created_at ASC
-			FOR UPDATE SKIP LOCKED
-			LIMIT 1
-		)
-		RETURNING id, type, payload, status, retries, max_retries, created_at
-	`
+        UPDATE tasks
+        SET status = $1, updated_at = NOW()
+        WHERE id = (
+            SELECT id FROM tasks
+            WHERE status = $2 
+            AND retries < max_retries     -- Added: Don't pick up dead tasks
+            AND created_at <= NOW() 
+            ORDER BY created_at ASC
+            LIMIT 1                       -- LIMIT must come before FOR UPDATE
+            FOR UPDATE SKIP LOCKED
+        )
+        RETURNING id, type, payload, status, retries, max_retries, created_at
+    `
 
+	// Execute the query. $1 = PROCESSING, $2 = PENDING
 	row := s.db.QueryRow(query, models.StatusProcessing, models.StatusPending)
 
-	err := row.Scan(&t.ID, &t.Type, &t.Payload, &t.Status, &t.Retries, &t.MaxRetries, &t.CreatedAt)
+	err := row.Scan(
+		&t.ID,
+		&t.Type,
+		&t.Payload,
+		&t.Status,
+		&t.Retries,
+		&t.MaxRetries,
+		&t.CreatedAt,
+	)
+
+	// Queue is empty
 	if err == sql.ErrNoRows {
-		return nil, nil // Queue is empty, no work to do
+		return nil, nil
 	}
+
+	//database error
 	if err != nil {
 		return nil, fmt.Errorf("error fetching next task: %w", err)
 	}
@@ -80,9 +90,8 @@ func (s *TaskStore) GetNextTask() (*models.Task, error) {
 	return &t, nil
 }
 
-// UpdateStatus is called by the worker when it finishes (Success or Fail)
+// the worker finishes (Success or Fail)
 func (s *TaskStore) UpdateStatus(id uuid.UUID, status models.Status, errorMessage string) error {
-	// If failed, we might want to increment retry count (logic can be here or in processor)
 	query := `
 		UPDATE tasks 
 		SET status = $1, error = $2, updated_at = NOW() 
@@ -92,7 +101,7 @@ func (s *TaskStore) UpdateStatus(id uuid.UUID, status models.Status, errorMessag
 	return err
 }
 
-// IncrementRetry is called when a task fails but can be retried
+// when a task fails but can be retried
 func (s *TaskStore) IncrementRetry(id uuid.UUID, nextRetryTime time.Time) error {
 	query := `
         UPDATE tasks
