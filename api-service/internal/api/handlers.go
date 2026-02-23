@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Bharat1Rajput/task-management/internal/models"
-	"github.com/Bharat1Rajput/task-management/internal/publisher"
+	"github.com/Bharat1Rajput/apiService/internal/models"
+	"github.com/Bharat1Rajput/apiService/internal/publisher"
 )
 
 type Handler struct {

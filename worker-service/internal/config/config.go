@@ -5,8 +5,6 @@ import (
 	"strconv"
 )
 
-// Config holds the configuration values for the application.
-
 type Config struct {
 	ServerPort  string
 	DBHost      string
@@ -31,21 +29,22 @@ func Load() *Config {
 		WorkerCount: getEnvInt("WORKER_COUNT", 5),
 		QueueSize:   getEnvInt("QUEUE_SIZE", 100),
 	}
+
 	return cfg
 }
 
-func getEnv(key, defaultValue string) string {
+func getEnv(key, fallback string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
-	return defaultValue
+	return fallback
 }
 
-func getEnvInt(key string, defaultValue int) int {
+func getEnvInt(key string, fallback int) int {
 	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
+		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
 		}
 	}
-	return defaultValue
+	return fallback
 }

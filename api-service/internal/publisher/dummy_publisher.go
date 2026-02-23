@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/Bharat1Rajput/task-management/internal/models"
+	"github.com/Bharat1Rajput/apiService/internal/models"
 )
 
 type DummyPublisher struct{}
