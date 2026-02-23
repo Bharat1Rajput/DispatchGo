@@ -16,20 +16,20 @@ type Config struct {
 	SSLMode  string
 }
 
-func NewPostgresDB(cfg Config) (*sql.DB, error) {
+func NewPostgres(cfg Config) (*sql.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
 	)
-	// the lazy opener (sql.Open does not establish any connections to the database.validate the arguments and returns a *DB)
+	//   the lazy opener (sql.Open does not establish any connections to the database.validate the arguments and returns a *DB)
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
 	// Configure connection pool
-	db.SetMaxOpenConns(25) // maximum number of open connections to the database
-	db.SetMaxIdleConns(5)  // maximum number of connections in the idle connection pool
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
 
 	// Verify connection
 	if err := db.Ping(); err != nil {

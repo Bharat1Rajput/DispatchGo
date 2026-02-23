@@ -4,8 +4,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/Bharat1Rajput/task-management/internal/api"
-	"github.com/Bharat1Rajput/task-management/internal/publisher"
+	"github.com/Bharat1Rajput/apiService/internal/api"
+	"github.com/Bharat1Rajput/apiService/internal/publisher"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package publisher
 import (
 	"context"
 
-	"github.com/Bharat1Rajput/task-management/internal/models"
+	"github.com/Bharat1Rajput/apiService/internal/models"
 )
 
 type JobPublisher interface {
