@@ -10,7 +10,7 @@ import (
 func NewRouter(h *Handler) *mux.Router {
 	r := mux.NewRouter()
 
-	r.HandleFunc("/tasks", h.CreateTask).Methods("POST")
+	r.HandleFunc("/jobs", h.CreateJob).Methods("POST")
 	// Health check
 	r.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)
