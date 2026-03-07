@@ -1,12 +1,9 @@
-version: '3.9'
+
 
 services:
 
-  # -------------------------
-  # PostgreSQL Database
-  # -------------------------
   postgres:
-    image: postgres:15
+    image: postgres:16-alpine
     container_name: dispatchgo-postgres
     restart: always
     environment:
@@ -17,44 +14,79 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dispatch_user -d dispatchgo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-  # -------------------------
-  # Zookeeper (Required by Kafka)
-  # -------------------------
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: dispatchgo-zookeeper
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: dispatchgo-rabbitmq
     restart: always
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
     ports:
-      - "2181:2181"
-
-  # -------------------------
-  # Kafka Broker
-  # -------------------------
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: dispatchgo-kafka
-    restart: always
-    depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
+      - "5672:5672"
+      - "15672:15672"
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     volumes:
-      - kafka_data:/var/lib/kafka/data
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
-# -------------------------
-# Persistent Volumes
-# -------------------------
+  db-migrate:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "psql postgresql://dispatch_user:dispatch_pass@postgres:5432/dispatchgo
+      -f /migrations/001_create_webhook_jobs.sql"
+    volumes:
+      - ./worker-service/migrations:/migrations:ro
+
+  api-service:
+    build:
+      context: ./api-service
+      dockerfile: Dockerfile
+    environment:
+      APP_PORT: "8080"
+      HMAC_SECRET: supersecretkey
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      RABBITMQ_EXCHANGE: webhooks
+      RABBITMQ_QUEUE: webhook.jobs
+      RABBITMQ_ROUTING_KEY: webhook.jobs
+    ports:
+      - "8080:8080"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  worker-service:
+    build:
+      context: ./worker-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgres://dispatch_user:dispatch_pass@postgres:5432/dispatchgo?sslmode=disable
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+      RABBITMQ_EXCHANGE: webhooks
+      RABBITMQ_QUEUE: webhook.jobs
+      RABBITMQ_ROUTING_KEY: webhook.jobs
+      MAX_RETRIES: 3
+      BACKOFF_BASE_MS: 1000
+      HTTP_CLIENT_TIMEOUT_SEC: 10
+      WORKER_CONCURRENCY: 5
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+
 volumes:
   postgres_data:
-  kafka_data: 
+  rabbitmq_data:
+  

@@ -1,50 +1,59 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 )
 
 type Config struct {
-	ServerPort  string
-	DBHost      string
-	DBPort      int
-	DBUser      string
-	DBPassword  string
-	DBName      string
-	DBSSLMode   string
-	WorkerCount int
-	QueueSize   int
+	DatabaseURL          string
+	RabbitURL            string
+	RabbitExchange       string
+	RabbitQueue          string
+	RabbitRoutingKey     string
+	MaxRetries           int
+	BackoffBaseMS        int
+	HTTPClientTimeoutSec int
+	WorkerConcurrency    int
 }
 
-func Load() *Config {
+func Load() (*Config, error) {
 	cfg := &Config{
-		ServerPort:  getEnv("SERVER_PORT", "8080"),
-		DBHost:      getEnv("DB_HOST", "localhost"),
-		DBPort:      getEnvInt("DB_PORT", 5432),
-		DBUser:      getEnv("DB_USER", "postgres"),
-		DBPassword:  getEnv("DB_PASSWORD", "postgres"),
-		DBName:      getEnv("DB_NAME", "taskdb"),
-		DBSSLMode:   getEnv("DB_SSL_MODE", "disable"),
-		WorkerCount: getEnvInt("WORKER_COUNT", 5),
-		QueueSize:   getEnvInt("QUEUE_SIZE", 100),
+		DatabaseURL:          os.Getenv("DATABASE_URL"),
+		RabbitURL:            os.Getenv("RABBITMQ_URL"),
+		RabbitExchange:       getEnv("RABBITMQ_EXCHANGE", "webhooks"),
+		RabbitQueue:          getEnv("RABBITMQ_QUEUE", "webhook.jobs"),
+		RabbitRoutingKey:     getEnv("RABBITMQ_ROUTING_KEY", "webhook.jobs"),
+		MaxRetries:           getEnvInt("MAX_RETRIES", 3),
+		BackoffBaseMS:        getEnvInt("BACKOFF_BASE_MS", 1000),
+		HTTPClientTimeoutSec: getEnvInt("HTTP_CLIENT_TIMEOUT_SEC", 10),
+		WorkerConcurrency:    getEnvInt("WORKER_CONCURRENCY", 5),
 	}
 
-	return cfg
+	if cfg.DatabaseURL == "" {
+		return nil, fmt.Errorf("config: DATABASE_URL is required")
+	}
+	if cfg.RabbitURL == "" {
+		return nil, fmt.Errorf("config: RABBITMQ_URL is required")
+	}
+
+	return cfg, nil
 }
 
 func getEnv(key, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
 	return fallback
 }
 
 func getEnvInt(key string, fallback int) int {
-	if value := os.Getenv(key); value != "" {
-		if intVal, err := strconv.Atoi(value); err == nil {
-			return intVal
+	if v := os.Getenv(key); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			return i
 		}
 	}
 	return fallback
 }
+

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,42 +9,73 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/Bharat1Rajput/workerService/internal/config"
-	"github.com/Bharat1Rajput/workerService/internal/database"
-	"github.com/Bharat1Rajput/workerService/internal/store"
-	"github.com/Bharat1Rajput/workerService/internal/worker"
+	"github.com/Bharat1Rajput/workerService/internal/consumer"
+	"github.com/Bharat1Rajput/workerService/internal/processor"
+	"github.com/Bharat1Rajput/workerService/internal/repository"
+	"database/sql"
+	_ "github.com/lib/pq"
+	"go.uber.org/zap"
 )
 
 func main() {
+	if err := run(); err != nil {
+		panic(err)
+	}
+}
+
+func run() error {
 	_ = godotenv.Load()
 
-	cfg := config.Load()
-
-	// Initialize database
-	db, err := database.NewPostgres(database.Config{
-		Host:     cfg.DBHost,
-		Port:     cfg.DBPort,
-		User:     cfg.DBUser,
-		Password: cfg.DBPassword,
-		DBName:   cfg.DBName,
-		SSLMode:  cfg.DBSSLMode,
-	})
+	logger, err := zap.NewProduction()
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		return err
 	}
-	log.Println("Connected to database successfully")
+	defer logger.Sync()
+
+	cfg, err := config.Load()
+	if err != nil {
+		logger.Fatal("failed to load config", zap.Error(err))
+	}
+	logger.Info("database url", zap.String("url", cfg.DatabaseURL))
+	db, err := sql.Open("postgres", cfg.DatabaseURL)
+	if err != nil {
+		logger.Fatal("failed to connect to database", zap.Error(err))
+	}
+	if err := db.Ping(); err != nil {
+		logger.Fatal("database ping failed", zap.Error(err))
+	}
 	defer db.Close()
 
-	store := store.NewStore(db)
-	w := worker.New(store)
+	repo := repository.NewPostgresJobRepository(db)
+	proc := processor.New(cfg, repo, logger)
+
+	cons, err := consumer.New(cfg, proc, logger)
+	if err != nil {
+		logger.Fatal("failed to create consumer", zap.Error(err))
+	}
+	defer cons.Close()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go w.Start(ctx)
+	defer cancel()
+
+	errCh := make(chan error, 1)
+	go func() {
+		if err := cons.Start(ctx); err != nil {
+			errCh <- err
+		}
+	}()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-	<-stop
-	log.Println("\nShutdown signal received. Gracefully stopping system...")
 
-	cancel()
-	log.Println("Worker shutting down,no job were left unprocessed")
+	select {
+	case <-stop:
+		logger.Info("shutdown signal received")
+		cancel()
+	case err := <-errCh:
+		return err
+	}
+
+	return nil
 }
+
