@@ -1,0 +1,57 @@
+databases:
+  - name: dispatchgo-postgres
+    plan: free
+    databaseName: dispatchgo
+    user: dispatch_user
+    ipAllowList: []
+
+services:
+  - type: web
+    name: dispatchgo-api
+    runtime: docker
+    plan: free
+    dockerContext: ./api-service
+    dockerfilePath: ./api-service/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: APP_PORT
+        value: "8080"
+      - key: HMAC_SECRET
+        sync: false
+      - key: RABBITMQ_URL
+        sync: false
+      - key: RABBITMQ_EXCHANGE
+        value: webhooks
+      - key: RABBITMQ_QUEUE
+        value: webhook.jobs
+      - key: RABBITMQ_ROUTING_KEY
+        value: webhook.jobs
+
+  - type: worker
+    name: dispatchgo-worker
+    runtime: docker
+    plan: free
+    dockerContext: ./worker-service
+    dockerfilePath: ./worker-service/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dispatchgo-postgres
+          property: connectionString
+      - key: RABBITMQ_URL
+        sync: false
+      - key: RABBITMQ_EXCHANGE
+        value: webhooks
+      - key: RABBITMQ_QUEUE
+        value: webhook.jobs
+      - key: RABBITMQ_ROUTING_KEY
+        value: webhook.jobs
+      - key: MAX_RETRIES
+        value: "3"
+      - key: BACKOFF_BASE_MS
+        value: "1000"
+      - key: HTTP_CLIENT_TIMEOUT_SEC
+        value: "10"
+      - key: WORKER_CONCURRENCY
+        value: "5"
+ 

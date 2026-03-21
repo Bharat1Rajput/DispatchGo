@@ -1,5 +1,7 @@
 # DispatchGo – Distributed Webhook Dispatcher
 
+Originally built as a monolith with a PostgreSQL-backed queue, DispatchGo was re-architected into decoupled microservices to remove delivery bottlenecks, isolate failures, and scale API ingestion independently from webhook execution.
+
 DispatchGo is a production‑style, distributed webhook dispatcher built in Go.  
 It turns slow, unreliable outbound webhooks into a **fast, authenticated API + durable background workers**, using **RabbitMQ** for jobs and **PostgreSQL** for persistence.
 
