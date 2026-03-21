@@ -6,6 +6,21 @@ databases:
     ipAllowList: []
 
 services:
+  - type: pserv
+    name: dispatchgo-rabbitmq
+    image: rabbitmq:3-management
+    disk:
+      name: rabbitmq-data
+      mountPath: /var/lib/rabbitmq
+      sizeGB: 5
+    envVars:
+      - key: RABBITMQ_DEFAULT_USER
+        value: dispatchgo_user
+      - key: RABBITMQ_DEFAULT_PASS
+        value: YourStrongPass123!@#
+      - key: RABBITMQ_ERLANG_COOKIE
+        value: SuperSecretCookie2026XYZ
+
   - type: web
     name: dispatchgo-api
     runtime: docker
@@ -18,40 +33,17 @@ services:
         value: "8080"
       - key: HMAC_SECRET
         sync: false
-      - key: RABBITMQ_URL
-        sync: false
-      - key: RABBITMQ_EXCHANGE
-        value: webhooks
-      - key: RABBITMQ_QUEUE
-        value: webhook.jobs
-      - key: RABBITMQ_ROUTING_KEY
-        value: webhook.jobs
-
-  - type: worker
-    name: dispatchgo-worker
-    runtime: docker
-    plan: free
-    dockerContext: ./worker-service
-    dockerfilePath: ./worker-service/Dockerfile
-    envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: dispatchgo-postgres
           property: connectionString
       - key: RABBITMQ_URL
-        sync: false
+        fromService:
+          name: dispatchgo-rabbitmq
+          property: connectionString
       - key: RABBITMQ_EXCHANGE
         value: webhooks
       - key: RABBITMQ_QUEUE
         value: webhook.jobs
       - key: RABBITMQ_ROUTING_KEY
         value: webhook.jobs
-      - key: MAX_RETRIES
-        value: "3"
-      - key: BACKOFF_BASE_MS
-        value: "1000"
-      - key: HTTP_CLIENT_TIMEOUT_SEC
-        value: "10"
-      - key: WORKER_CONCURRENCY
-        value: "5"
- 
